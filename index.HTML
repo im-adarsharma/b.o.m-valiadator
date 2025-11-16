@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>THE-HELIUM</title>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg: #0b0f12;
+      --panel: #0f1720;
+      --muted: #9aa6b2;
+      --accent: #3ddc97;
+      --danger: #ff6b6b;
+      --highlight: #ffd85c;
+      --card-shadow: 0 6px 18px rgba(0,0,0,0.6);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#050608 0%, #081019 100%);color:#e6eef3}
+    .container{max-width:1100px;margin:28px auto;padding:20px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;box-shadow:var(--card-shadow)}
+    header{display:flex;align-items:center;gap:16px}
+    h1{margin:0;font-size:20px;font-weight:700}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+    .row{display:flex;gap:16px;margin-top:18px;flex-wrap:wrap}
+    .card{background:var(--panel);padding:16px;border-radius:10px;flex:1;min-width:260px;box-shadow:0 6px 18px rgba(5,8,12,0.7)}
+    label{display:block;color:var(--muted);font-size:12px;margin-bottom:8px}
+    input[type=file]{color:var(--muted)}
+    select,input[type=text]{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:#0b0f13;color:#e6eef3}
+    button{background:linear-gradient(90deg,var(--accent),#2ddc8a);border:none;padding:10px 14px;border-radius:10px;color:#031a14;font-weight:700;cursor:pointer}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(255,255,255,0.04)}
+    .small{font-size:13px;color:var(--muted)}
+    .sheet-list{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+    .sheet-btn{padding:8px 10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--muted)}
+    .sheet-btn.selected{border-color:rgba(61,220,151,0.18);background:linear-gradient(90deg, rgba(61,220,151,0.05), transparent);color:var(--accent)}
+    .mapping {margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .mapping .map-item{min-width:220px}
+    .preview{margin-top:14px;overflow:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);padding:10px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.02);text-align:left}
+    th{position:sticky;top:0;background:rgba(0,0,0,0.2);backdrop-filter:blur(4px);z-index:2;color:var(--muted)}
+    td.en-missing{background:linear-gradient(90deg, rgba(255,216,92,0.06), transparent);border-left:4px solid var(--highlight)}
+    .actions{display:flex;gap:10px;align-items:center;margin-top:12px}
+    .note{font-size:13px;color:var(--muted);margin-top:12px}
+    footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
+
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1><span style="color: blue;">THE-HELIUM</span> [BOM UPDATER]</h1>
+        <p class="lead">Upload → Select sheet → Preview → Download processed Excel</p>
+      </div>
+    </header>
+
+    <div class="row">
+      <div class="card" style="flex:0 0 360px;">
+
+        <!-- FILE INPUT -->
+        <label>Select Excel file (.xls / .xlsx)</label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls" />
+
+        <!-- NEW: PART NO INPUT FIELD -->
+        <div style="margin-top:16px;">
+          <label>PART NO (Auto-fill to all rows)</label>
+          <input id="partNoInput" type="text" placeholder="Enter PART NO e.g. 701-1-01234">
+        </div>
+
+        <div class="small note" style="margin-top:10px">
+          After upload you'll pick a sheet and confirm column mappings.
+        </div>
+
+        <div id="sheetArea" style="margin-top:12px;display:none">
+          <label>Choose sheet</label>
+          <div id="sheetsList" class="sheet-list"></div>
+        </div>
+
+        <div id="mappingArea" style="display:none;margin-top:14px">
+          <label>Column mappings (detected – adjust if needed)</label>
+          <div class="mapping">
+            <div class="map-item">
+              <div class="small">S. NO <span style="color:var(--muted)">(auto)</span></div>
+            </div>
+            <div class="map-item">
+              <div class="small">EN NO</div>
+              <select id="map_en"></select>
+            </div>
+            <div class="map-item">
+              <div class="small">DESCRIPTION</div>
+              <select id="map_description"></select>
+            </div>
+            <div class="map-item">
+              <div class="small">MFG</div>
+              <select id="map_mfg"></select>
+            </div>
+            <div class="map-item">
+              <div class="small">MPN <span style="color:var(--muted)">(always empty)</span></div>
+            </div>
+            <div class="map-item">
+              <div class="small">REF</div>
+              <select id="map_rfg"></select>
+            </div>
+            <div class="map-item">
+              <div class="small">WORKORDER <span style="color:var(--muted)">(auto -)</span></div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px">
+            <button id="confirmMappingsBtn">Confirm & Preview</button>
+            <button id="resetBtn" class="ghost">Reset</button>
+          </div>
+        </div>
+      </div>
+
+
+            <div class="card" style="flex:1;min-width:440px;">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="small">Preview (after confirming mappings)</div>
+            <div class="help">EN missing cells are highlighted.</div>
+          </div>
+          <div>
+            <button id="downloadBtn" style="display:none">Download Processed .xlsx</button>
+          </div>
+        </div>
+
+        <div id="previewArea" class="preview" style="display:none">
+          <table id="previewTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="note" id="statusNote" style="display:none"></div>
+      </div>
+    </div>
+
+    <footer>
+      <div>
+        Rules: MFG empty → '-' ; REF empty → 'NA' ; MPN empty ; WORKORDER → '-' ;
+        Quantity based on REF comma-count. Order preserved. PART NO auto-fill from input field.
+      </div>
+    </footer>
+  </div>
+
+  <!-- SCRIPT START -->
+  <script>
+    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+    function normalize(s){ 
+      return (s||'').toString().trim().toLowerCase()
+        .replace(/[_\-\.]/g,' ')
+        .replace(/\s+/g,' '); 
+    }
+
+    function similarity(a,b){
+      a = normalize(a); b = normalize(b);
+      if(!a || !b) return 0;
+      if(a===b) return 1;
+      const at = a.split(' '); 
+      const bt = b.split(' ');
+      let common = 0;
+      at.forEach(x => { if(bt.includes(x)) common++; });
+      const tokenScore = common / Math.max(at.length, bt.length);
+      let prefix = 0;
+      for(let i=0;i<Math.min(a.length,b.length);i++){
+        if(a[i]===b[i]) prefix++;
+        else break;
+      }
+      const prefixScore = prefix / Math.max(a.length,b.length);
+      return Math.max(tokenScore, prefixScore*0.8, 0.1);
+    }
+
+    const preferredSynonyms = {
+      "EN NO":["en","en no","en_no","en number","equipment number","item no","item no.","item_no","en#","eno"],
+      "DESCRIPTION":["description","desc","descp","item description","itemdesc","details","detail","part description"],
+      "MFG":["mfg","manufacturer","mfr","maker","mfg name","manuf","manufacturer name"],
+      "RFG":["rfg","rgf","ref","reference","ref no","refno","ref #","references"]
+    };
+
+    const fileInput = document.getElementById('fileInput');
+    const sheetsList = document.getElementById('sheetsList');
+    const sheetArea = document.getElementById('sheetArea');
+    const mappingArea = document.getElementById('mappingArea');
+
+    const partNoInput = document.getElementById('partNoInput');
+
+    const map_en = document.getElementById('map_en');
+    const map_description = document.getElementById('map_description');
+    const map_mfg = document.getElementById('map_mfg');
+    const map_rfg = document.getElementById('map_rfg');
+
+    const confirmMappingsBtn = document.getElementById('confirmMappingsBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const previewArea = document.getElementById('previewArea');
+    const previewTable = document.getElementById('previewTable');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusNote = document.getElementById('statusNote');
+
+    let workbook = null;
+    let workbookFileName = '';
+    let currentSheetName = '';
+    let sheetHeaders = [];
+    let rawSheetJson = [];
+    let mapping = { en:null, description:null, mfg:null, rfg:null };
+
+    fileInput.addEventListener('change', async(ev)=>{
+      const f = ev.target.files && ev.target.files[0];
+      if(!f) return;
+      workbookFileName = f.name.replace(/\.[^/.]+$/, "");
+      const data = await f.arrayBuffer();
+      workbook = XLSX.read(data, {type:'array'});
+
+      sheetsList.innerHTML = '';
+      sheetArea.style.display = 'block';
+
+      workbook.SheetNames.forEach((sname)=>{
+        const btn = document.createElement('button');
+        btn.className = 'sheet-btn';
+        btn.textContent = sname;
+        btn.addEventListener('click', ()=>selectSheet(sname, btn));
+        sheetsList.appendChild(btn);
+      });
+
+      const firstBtn = sheetsList.querySelector('.sheet-btn');
+      if(firstBtn) firstBtn.click();
+    });
+
+    function selectSheet(name, btn){
+      sheetsList.querySelectorAll('.sheet-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+
+      currentSheetName = name;
+
+      const ws = workbook.Sheets[name];
+      const raw = XLSX.utils.sheet_to_json(ws, {defval:null, header:1});
+
+      let headerRowIndex = 0;
+      for(let r=0;r<Math.min(5, raw.length); r++){
+        const row = raw[r] || [];
+        const nonEmpty = row.some(c => c !== null && c !== '');
+        if(nonEmpty){ headerRowIndex = r; break; }
+      }
+
+      const headers = (raw[headerRowIndex]||[]).map(h => (h===null? '': String(h)));
+      sheetHeaders = headers;
+
+      const aoa = raw.slice(headerRowIndex+1);
+      rawSheetJson = aoa.map(row=>{
+        const obj = {};
+        for(let i=0;i<headers.length;i++){
+          obj[headers[i]||`COL${i+1}`] = (row[i]===null? '' : row[i]);
+        }
+        return obj;
+      });
+
+      populateSelects();
+      mappingArea.style.display = 'block';
+      previewArea.style.display = 'none';
+      downloadBtn.style.display = 'none';
+      statusNote.style.display = 'none';
+    }
+
+    function populateSelects(){
+      [map_en,map_description,map_mfg,map_rfg].forEach(s=>{
+        s.innerHTML = '';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value=''; emptyOpt.textContent='-- none --';
+        s.appendChild(emptyOpt);
+      });
+
+      sheetHeaders.forEach(h=>{
+        const opt = document.createElement('option');
+        opt.value = h; opt.textContent = h;
+        map_en.appendChild(opt.cloneNode(true));
+        map_description.appendChild(opt.cloneNode(true));
+        map_mfg.appendChild(opt.cloneNode(true));
+        map_rfg.appendChild(opt.cloneNode(true));
+      });
+
+      autoDetectMappings();
+    }
+
+    async function autoDetectMappings(){
+      const targets = ['EN NO','DESCRIPTION','MFG','RFG'];
+      for(const t of targets){
+        let best = {header:'',score:0};
+        const syns = preferredSynonyms[t] || [];
+        sheetHeaders.forEach(h=>{
+          syns.forEach(syn=>{
+            const s = similarity(h, syn);
+            if(s > best.score) best = {header:h,score:s};
+          });
+          const s2 = similarity(h, t);
+          if(s2 > best.score) best = {header:h,score:s2};
+        });
+
+        if(best.score >= 0.4 && best.header){
+          const choice = await showMappingModal(t, best.header, sheetHeaders);
+          if(choice !== null){
+            const el = selectElementForTarget(t);
+            if(el) el.value = choice;
+          }
+        }
+      }
+    }
+
+    function selectElementForTarget(target){
+      if(target==='EN NO') return map_en;
+      if(target==='DESCRIPTION') return map_description;
+      if(target==='MFG') return map_mfg;
+      if(target==='RFG') return map_rfg;
+      return null;
+    }
+
+    function showModal(){ modalBackdrop.style.display = 'flex'; }
+    function hideModal(){ modalBackdrop.style.display = 'none'; }
+
+    function showMappingModal(targetName, detectedHeader, headers){
+      return new Promise((resolve)=>{
+        modalTitle.textContent = `Confirm mapping for "${targetName}"`;
+        modalDesc.textContent = `Detected "${detectedHeader}" as likely match.`;
+        modalTarget.textContent = targetName;
+        modalDetected.textContent = detectedHeader;
+
+        modalSelect.innerHTML = '';
+        const noneOpt = document.createElement('option');
+        noneOpt.value=''; noneOpt.textContent='-- none --';
+        modalSelect.appendChild(noneOpt);
+        headers.forEach(h=>{
+          const o = document.createElement('option');
+          o.value = h; o.textContent = h;
+          modalSelect.appendChild(o);
+        });
+
+        modalSelect.value = detectedHeader;
+
+        modalOk.onclick = ()=>{ hideModal(); resolve(modalSelect.value); };
+        modalCancel.onclick = ()=>{ hideModal(); resolve(null); };
+        modalSkip.onclick = ()=>{ hideModal(); resolve(''); };
+
+        showModal();
+      });
+    }
+
+    confirmMappingsBtn.addEventListener('click', ()=>{
+      mapping.en = map_en.value || null;
+      mapping.description = map_description.value || null;
+      mapping.mfg = map_mfg.value || null;
+      mapping.rfg = map_rfg.value || null;
+
+      const processed = processRows(rawSheetJson, mapping);
+      renderPreview(processed);
+
+      statusNote.style.display = 'block';
+      statusNote.textContent = `Preview: ${processed.length} rows.`;
+
+      previewArea.style.display = 'block';
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = ()=>downloadWorkbook(processed);
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      [map_en,map_description,map_mfg,map_rfg].forEach(s=>s.value='');
+      previewArea.style.display='none';
+      downloadBtn.style.display='none';
+      statusNote.style.display='none';
+    });
+
+    function processRows(rows, mapping){
+      const finalRows = [];
+      let counter = 1;
+
+      const userPartNo = partNoInput.value.trim();
+
+      for(const r of rows){
+        const allEmpty = Object.values(r).every(v =>
+          v === '' || v === null || (typeof v === 'string' && v.trim()==='')
+        );
+        if(allEmpty) continue;
+
+        const enVal = mapping.en ? (r[mapping.en]||'') : '';
+        const descVal = mapping.description ? (r[mapping.description]||'') : '';
+        let mfgVal = mapping.mfg ? (r[mapping.mfg]||'') : '';
+        let rfgVal = mapping.rfg ? (r[mapping.rfg]||'') : '';
+
+        mfgVal = mfgVal ? mfgVal : '-';
+        rfgVal = rfgVal ? rfgVal : 'NA';
+
+        let quantity = 1;
+        if(typeof rfgVal === 'string'){
+          const t = rfgVal.trim();
+          if(t.toLowerCase() !== 'na'){
+            const tokens = t.split(/[;,]/).map(x=>x.trim()).filter(x=>x!=='');
+            quantity = tokens.length || 1;
+          }
+        }
+
+        const out = {
+          'S. NO': counter,
+          'EN NO': enVal,
+          'PART NO': userPartNo,
+          'DESCRIPTION': descVal,
+          'MFG': mfgVal,
+          'MPN': '',
+          'QUANTITY': quantity,
+          'REF': rfgVal,
+          'WORKORDER': '-'
+        };
+
+        finalRows.push(out);
+        counter++;
+      }
+      return finalRows;
+    }
+
+    function renderPreview(rows){
+      const thead = previewTable.querySelector('thead');
+      const tbody = previewTable.querySelector('tbody');
+      thead.innerHTML = ''; 
+      tbody.innerHTML = '';
+
+      if(!rows.length){
+        tbody.innerHTML = '<tr><td style="color:var(--muted)">No data</td></tr>';
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const trh = document.createElement('tr');
+      headers.forEach(h=>{
+        const th = document.createElement('th');
+        th.textContent = h;
+        trh.appendChild(th);
+      });
+      thead.appendChild(trh);
+
+      rows.forEach(row=>{
+        const tr = document.createElement('tr');
+        headers.forEach(h=>{
+          const td = document.createElement('td');
+          td.textContent = row[h];
+          if(h === 'EN NO' && (!td.textContent || td.textContent.trim()==='')){
+            td.classList.add('en-missing');
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function downloadWorkbook(rows){
+      if(!rows.length){ alert('Nothing to download'); return; }
+      const ws = XLSX.utils.json_to_sheet(rows, {
+        header:Object.keys(rows[0])
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Processed');
+      XLSX.writeFile(wb, `Processed_${workbookFileName}.xlsx`);
+    }
+
+  </script>
+  <!-- SCRIPT END -->
+  <!-- MAPPING CONFIRMATION MODAL -->
+  <div id="modalBackdrop"
+       style="display:none;position:fixed;left:0;top:0;width:100%;height:100%;
+              background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);
+              z-index:999;align-items:center;justify-content:center;">
+    <div style="background:#0f1720;padding:20px;border-radius:12px;
+                width:380px;box-shadow:0 8px 22px rgba(0,0,0,0.5);
+                border:1px solid rgba(255,255,255,0.05);">
+
+      <h3 id="modalTitle" style="margin:0 0 10px;font-size:18px;color:#e6eef3;">
+        Mapping Confirmation
+      </h3>
+
+      <p id="modalDesc" style="margin:0;color:#9aa6b2;font-size:13px;"></p>
+      <div style="margin-top:10px;">
+        <label style="color:#9aa6b2;font-size:12px;">Choose column for:
+          <span id="modalTarget" style="color:#3ddc97;font-weight:600;"></span>
+        </label>
+        <select id="modalSelect"
+                style="width:100%;padding:8px;border-radius:8px;
+                       background:#0b0f13;color:#e6eef3;
+                       border:1px solid rgba(255,255,255,0.05);margin-top:6px;">
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+        <button id="modalOk"
+                style="padding:8px 14px;border-radius:8px;background:var(--accent);
+                       border:none;color:#031a14;font-weight:700;cursor:pointer;">
+          Confirm
+        </button>
+
+        <button id="modalCancel"
+                style="padding:8px 14px;border-radius:8px;background:transparent;
+                       border:1px solid rgba(255,255,255,0.1);color:#9aa6b2;cursor:pointer;">
+          Cancel
+        </button>
+
+        <button id="modalSkip"
+                style="padding:8px 14px;border-radius:8px;background:transparent;
+                       border:1px solid rgba(255,255,255,0.1);color:#3ddc97;cursor:pointer;">
+          Skip
+        </button>
+      </div>
+
+    </div>
+  </div>
+<footer style="
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  font-size:8px;
+">
+<img src="IMAGE/mammal.png" height="30">
+  <h2 style="margin:0;">THIS PAGE IS DEVELOPED BY<span style="color: rgb(163, 255, 182);"> ADARSH</span></h2>
+</footer>
+</body>
+</html>
